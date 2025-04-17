@@ -65,34 +65,28 @@ MatrixXd readCoulomb(std::string filepath){
 
 int main(int argc, char *argv[]){
 
-    MatrixXd trainingData = readCoulomb(strcat(argv[1], "coulomb_train.txt"));
-    VectorXd trainingTrgt = readPBE0   (strcat(argv[1], "PBE0_train.txt"));
+    std::string in_path  = argv[1];
+    std::string out_path = argv[2];
+    
+    MatrixXd trainingData = readCoulomb(in_path + "coulomb_train.txt");
+    VectorXd trainingTrgt = readPBE0   (in_path + "PBE0_train.txt");
 
-    MatrixXd testingData  = readCoulomb(strcat(argv[1], "coulomb_test.txt"));
-    VectorXd testingTrgt  = readPBE0   (strcat(argv[1], "PBE0_test.txt"));
+    MatrixXd testingData  = readCoulomb(in_path + "coulomb_test.txt");
+    VectorXd testingTrgt  = readPBE0   (in_path + "PBE0_test.txt");
 
     std::cout << "Training Size: " << trainingData.rows() << "\n"; 
     std::cout << "Testing Size : "  << testingData.rows()  << "\n"; 
 
-    std::vector<double> sigmas;
-    std::vector<double> lambdas;
+    VectorXd sigmas  = readPBE0(in_path + "sigmas.txt");
+    VectorXd lambdas = readPBE0(in_path + "lambdas.txt");
+
     kernelType kernel = GAUSSIAN;
     lossMetric loss   = MAE;
 
     int k = 5;
 
-    int nSigmas  = 5;
-    int nLambdas = 5;
-
-    for(int i = 0; i < nSigmas; i++){    
-        sigmas.emplace_back(std::pow(2, i));
-        // std::cout << sigmas[i] << " ";
-    }
-
-    for(int i = 0; i < nLambdas; i++){
-        lambdas.emplace_back(std::pow(10, -i));
-        // std::cout << lambdas[i] << " ";
-    }
+    int nSigmas  = sigmas.rows();
+    int nLambdas = lambdas.rows();
     
     MatrixXd MAEs = MatrixXd::Zero(sigmas.size(), lambdas.size());
     
@@ -160,7 +154,7 @@ int main(int argc, char *argv[]){
     auto PBE = testingTrgt.transpose();
     auto est = eval.first.transpose();
 
-    std::ofstream file2((strcat(argv[2], "Eref_Eest.txt")));
+    std::ofstream file2(out_path + "Eref_Eest.txt");
     if (file2.is_open()){
         file2 << PBE << std::endl;
         file2 << est << std::endl;
