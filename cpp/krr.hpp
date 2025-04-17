@@ -58,17 +58,19 @@ public:
         MatrixXd K = MatrixXd::Zero(nTrain, nTrain);
 
         // Construct Kernel Matrix
-        double dst = (-2*sigma*sigma);
+        double dst = 1./(-2.*sigma*sigma);
+
         if (verbose > 0){std::cout << "Training model...\n";};
 
         for(int i = 0; i < nTrain; i++){
             for(int j = 0; j < nTrain; j++){
+                if      (i == j){K(i, j) = 1.     ; continue;}
+                else if (i  > j){K(i, j) = K(j, i); continue;}
+
                 K(i, j) = 
-                    std::exp(
-                        std::pow((trainingData(i, all) - trainingData(j, all)).norm(), 2) / dst);
+                    std::exp((trainingData(i, all) - trainingData(j, all)).squaredNorm() * dst);
             }
         }
-
 
         // Construct lambdaI
         MatrixXd lambdaI = MatrixXd::Identity(nTrain, nTrain)*lambda;
@@ -77,81 +79,69 @@ public:
         alphas = ((K + lambdaI).inverse())*TRAININGTARGET;
 
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        if (verbose > 0){std::cout << "Model trained in " << duration.count() << " seconds." << std::endl;};
+        if (verbose > 0){std::cout << "Model trained in " << duration.count() << " ms.\n" << std::endl;};
     };
 
-    VectorXd predict(MatrixXd testing_data, int verbose){
-        auto start = std::chrono::high_resolution_clock::now();
+    VectorXd predict(const MatrixXd testing_data, const int verbose){
+        const auto start = std::chrono::high_resolution_clock::now();
 
-        int nTest = testing_data.rows();
-        double dst = (-2*sigma*sigma);
-         
+        const int nTest = testing_data.rows();
+        const double dst = 1./(-2.*sigma*sigma);
+        
         VectorXd predictions = VectorXd::Zero(nTest);
 
-        for(int i = 0; i < nTest; i++){
-            double sum = 0;
-            for(int j = 0 ; j < alphas.rows(); j++){
-                sum += alphas(j) * std::exp(
-                    std::pow((testing_data(i, all) - trainingData(j, all)).norm(), 2) / dst);
-            }
+        for (int i = 0; i < nTest; i++){
+            MatrixXd T_x = (-trainingData).rowwise() + testing_data(i, all);
 
-            predictions(i) = sum;
+            VectorXd D_x = T_x.rowwise().squaredNorm();
+            D_x *= dst;
+
+            VectorXd D_exp = D_x.array().exp();
+
+            predictions(i) = (alphas.array() * D_exp.array()).sum();
         }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
 
-        if (verbose > 0){std::cout << "Evaluated" << nTest << " points in " << duration.count() << " seconds." << std::endl;};
+        const auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+        if (verbose > 0){std::cout << "Evaluated " << nTest << " points in " << duration.count() << " ms." << std::endl;};
         return predictions;
-
-        // MatrixXd U = trainingData.transpose();
-        // for(int i = 0; i < nTest; i++){
-        //     VectorXd v = testing_data(i, all).transpose();
-
-        //     MatrixXd result = ((-U).colwise() + v).array().square().matrix();
-
-        //     VectorXd colSum = result.colwise().sum();
-
-        //     VectorXd sigSum = (colSum / (-2*sigma*sigma));
-
-        //     VectorXd expSum = sigSum.array().exp();
-        //     predictions(i) = (sigSum.array() * alphas.array()).sum();
-        // };
     };
 
     std::pair<VectorXd, double> evaluate(MatrixXd testing_data, VectorXd testing_trgt, lossMetric loss, int verbose){
         auto start = std::chrono::high_resolution_clock::now();
 
         int nTest = testing_data.rows();
-        double dst = (-2*sigma*sigma);
+        double dst = 1./(-2.*sigma*sigma);
          
         VectorXd predictions = VectorXd::Zero(nTest);
 
-        for(int i = 0; i < nTest; i++){
-            double sum = 0;
-            for(int j = 0 ; j < alphas.rows(); j++){
-                sum += alphas(j) * std::exp(
-                    std::pow((testing_data(i, all) - trainingData(j, all)).norm(), 2) / dst);
-            }
+        for (int i = 0; i < nTest; i++){
+            MatrixXd T_x = (-trainingData).rowwise() + testing_data(i, all);
 
-            predictions(i) = sum;
+            VectorXd D_x = T_x.rowwise().squaredNorm();
+            D_x *= dst;
+
+            VectorXd D_exp = D_x.array().exp();
+
+            predictions(i) = (alphas.array() * D_exp.array()).sum();
         }
 
-        double error = 0;
+        double error = 0.;
 
         if (loss == MAE){
             error = (predictions - testing_trgt).cwiseAbs().mean();
         }
 
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        if (verbose > 0){std::cout << "Evaluated " << nTest << " points in " << duration.count() << " seconds." << std::endl;};
+        if (verbose > 0){std::cout << "Evaluated " << nTest << " points in " << duration.count() << " ms." << std::endl;};
 
         return {predictions, error};
     };
-
 };
 
 class KFold {

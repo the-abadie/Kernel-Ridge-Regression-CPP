@@ -4,7 +4,7 @@ import sys
 from copy import deepcopy
 
 argTrain  = int (sys.argv[1])
-argExtend = bool(sys.argv[2])
+argExtend = True if sys.argv[2] == 1 else False
 
 print("Base training set size:", argTrain)
 if argExtend: print("Extending Data. This will result in a fivefold increase of training data.")
