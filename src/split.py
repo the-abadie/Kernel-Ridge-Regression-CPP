@@ -92,6 +92,13 @@ def coulomb_eigenvalues(Z, R, n_max, outputname:str):
         else:
             coulomb_eVs[k] = np.concatenate((sorted_eVal, [0]*(n_max-n_atoms)))
 
+    if argExtend:
+        eV_copy = np.copy(coulomb_eVs)
+        for f in fs:
+            training_copy *= f
+            coulomb_eVs = np.append(coulomb_eVs, training_copy)
+            training_copy /= f
+
     np.savetxt(fname=outputname, X=coulomb_eVs, delimiter=" ", newline="\n")
     return coulomb_eVs
 
@@ -168,11 +175,9 @@ for i in range(len(strat_test)):
     R_test.append(R_rest[strat_test[i]])
     E_test.append(E_rest[strat_test[i]])
 
-if argExtend:
-    fs = [2/3, 0.995, 1.005, 3]
+fs = [2/3, 0.995, 1.005, 3]
 
-    Z_super = deepcopy(Z_train) * 5
-    R_super = deepcopy(R_train) * 5
+if argExtend:
     E_super = deepcopy(E_train) * 5
 
     index = 0
@@ -185,10 +190,6 @@ if argExtend:
             elif (fs[n] == 0.995) or (fs[n] == 1.005):
                 E_super[i] *= 1.005
             
-            R_super[i] = R_train[i - index]*fs[n]
-
-    Z_train = Z_super
-    R_train = R_super
     E_train = E_super
 
 if (len(max(Z_train, key=len)) != len(max(Z_test, key=len))):
@@ -198,6 +199,7 @@ n_max = max(len(max(Z_train, key=len)),
             len(max(Z_test,  key=len)))
 
 training_data = coulomb_eigenvalues(Z=Z_train, R=R_train, n_max=n_max, outputname= inpath + "coulomb_train.txt")
+
 training_trgt = np.array(E_train)
 np.savetxt(fname= inpath + "PBE0_train.txt", X=training_trgt)
 print(np.shape(training_data))

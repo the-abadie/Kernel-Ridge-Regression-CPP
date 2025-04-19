@@ -80,7 +80,7 @@ int main(int argc, char *argv[]){
     VectorXd sigmas  = readPBE0(in_path + "sigmas.txt");
     VectorXd lambdas = readPBE0(in_path + "lambdas.txt");
 
-    kernelType kernel = GAUSSIAN;
+    kernelType kernel = LAPLACIAN;
     lossMetric loss   = MAE;
 
     int k = 5;

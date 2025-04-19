@@ -58,7 +58,12 @@ public:
         MatrixXd K = MatrixXd::Zero(nTrain, nTrain);
 
         // Construct Kernel Matrix
-        double dst = 1./(-2.*sigma*sigma);
+
+        double dst = 0.;
+
+        if     (kernel == GAUSSIAN) {dst = 1./(-2.*sigma*sigma);}
+        else if(kernel == LAPLACIAN){dst = 1./-sigma;}
+        else   {std::cerr << "Kernel not specified, or not one of the allowed types."; exit(-1);}
 
         if (verbose > 0){std::cout << "Training model...\n";};
 
@@ -67,8 +72,15 @@ public:
                 if      (i == j){K(i, j) = 1.     ; continue;}
                 else if (i  > j){K(i, j) = K(j, i); continue;}
 
-                K(i, j) = 
-                    std::exp((trainingData(i, all) - trainingData(j, all)).squaredNorm() * dst);
+                if (kernel == GAUSSIAN){
+                    K(i, j) = 
+                        std::exp((trainingData(i, all) - trainingData(j, all)).squaredNorm() * dst);
+                }
+                else if (kernel == LAPLACIAN){
+                    K(i, j) = 
+                        std::exp((trainingData(i, all) - trainingData(j, all)).lpNorm<1>() * dst);
+                }
+                
             }
         }
 
@@ -88,7 +100,11 @@ public:
         const auto start = std::chrono::high_resolution_clock::now();
 
         const int nTest = testing_data.rows();
-        const double dst = 1./(-2.*sigma*sigma);
+
+        double dst = 0.;
+        if     (kernel == GAUSSIAN) {dst = 1./(-2.*sigma*sigma);}
+        else if(kernel == LAPLACIAN){dst = 1./-sigma;}
+        else   {std::cerr << "Kernel not specified, or not one of the allowed types."; exit(-1);}
         
         VectorXd predictions = VectorXd::Zero(nTest);
 
@@ -96,6 +112,9 @@ public:
             MatrixXd T_x = (-trainingData).rowwise() + testing_data(i, all);
 
             VectorXd D_x = T_x.rowwise().squaredNorm();
+            
+            if      (kernel == GAUSSIAN) {D_x = T_x.rowwise().squaredNorm();}
+            else if (kernel == LAPLACIAN){D_x = T_x.rowwise().lpNorm<1>();}
             D_x *= dst;
 
             VectorXd D_exp = D_x.array().exp();
@@ -114,14 +133,20 @@ public:
         auto start = std::chrono::high_resolution_clock::now();
 
         int nTest = testing_data.rows();
-        double dst = 1./(-2.*sigma*sigma);
-         
+        double dst = 0.;
+        if     (kernel == GAUSSIAN) {dst = 1./(-2.*sigma*sigma);}
+        else if(kernel == LAPLACIAN){dst = 1./-sigma;}
+        else   {std::cerr << "Kernel not specified, or not one of the allowed types."; exit(-1);}
+        
         VectorXd predictions = VectorXd::Zero(nTest);
 
         for (int i = 0; i < nTest; i++){
             MatrixXd T_x = (-trainingData).rowwise() + testing_data(i, all);
 
             VectorXd D_x = T_x.rowwise().squaredNorm();
+            
+            if      (kernel == GAUSSIAN) {D_x = T_x.rowwise().squaredNorm();}
+            else if (kernel == LAPLACIAN){D_x = T_x.rowwise().lpNorm<1>();}
             D_x *= dst;
 
             VectorXd D_exp = D_x.array().exp();
