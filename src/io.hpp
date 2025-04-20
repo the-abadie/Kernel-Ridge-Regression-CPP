@@ -114,3 +114,14 @@ void writeHPs(const std::string filepath, const double sigma, const double lambd
         file.close();
     }
 }   
+
+void writeEout(const std::string filepath, const double E_out){
+    std::ofstream file(filepath + "E_out.txt");
+
+    if (file.is_open()){
+        file << "E_out: " << E_out;
+    
+        // Close the file
+        file.close();
+    }
+}   

@@ -4,11 +4,13 @@
 
 int main(int argc, char *argv[]){
 
-    omp_set_num_threads(20);
-    
-    const std::string in_path  = argv[1];
-    const std::string out_path = argv[2];
-    
+    const int         k        = std::stoi(argv[1]);
+    const int         nThreads = std::stoi(argv[2]);
+    const std::string in_path  = argv[3];
+    const std::string out_path = argv[4];
+
+    omp_set_num_threads(nThreads);
+
     const MatrixXd trainingData = readCoulomb(in_path + "coulomb_train.txt");
     const VectorXd trainingTrgt = readPBE0   (in_path + "PBE0_train.txt");
 
@@ -24,18 +26,15 @@ int main(int argc, char *argv[]){
     const kernelType kernel = LAPLACIAN;
     const lossMetric loss   = MAE;
 
-    const int k = 5;
-
     const int nSigmas  = sigmas.rows();
     const int nLambdas = lambdas.rows();
     
     MatrixXd MAEs = MatrixXd::Zero(sigmas.size(), lambdas.size());
 
-    KFold kf(5);  // 5-fold CV
+    KFold kf(k);  // 5-fold CV
     auto folds = kf.split(trainingData, trainingTrgt);
 
     int CV_index = 1;
-    double best_error = std::pow(10, 100);
 
     Vector2i best_param {0, 0};
 
@@ -65,14 +64,18 @@ int main(int argc, char *argv[]){
             };
 
             MAEs(i, j) = fold_error / k;
-
-            if (MAEs(i, j) < best_error){
-                best_error = MAEs(i, j);
-                best_param << i, j;
-            }
-            
         };
     };
+
+    double lowestError = std::pow(10, 100);
+    for (int i=0; i < MAEs.rows(); i++){
+        for (int j=0; j < MAEs.cols(); j++){
+            if(MAEs(i, j) < lowestError){
+                lowestError = MAEs(i, j);
+                best_param  = {i, j};
+            }
+        }
+    }
 
     const double opt_sigma  = sigmas [best_param[0]];
     const double opt_lambda = lambdas[best_param[1]];
@@ -97,5 +100,6 @@ int main(int argc, char *argv[]){
     writeAlphas  (out_path, finalModel.get_alphas());
     writeMAEs    (out_path, MAEs);
     writeHPs     (out_path, opt_sigma, opt_lambda, kernel);
+    writeEout    (out_path, eval.second);
     return 0;
 }

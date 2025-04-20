@@ -3,9 +3,16 @@ import numpy.linalg as lin
 import sys
 from copy import deepcopy
 
-argTrain  = int (sys.argv[1])
+argTrain  = int(sys.argv[1])
 argExtend = True if int(sys.argv[2]) == 1 else False
-inpath    = str(sys.argv[3])
+stratify  = True if int(sys.argv[3]) == 1 else False
+k         = int(sys.argv[4])
+inpath    = str(sys.argv[5])
+
+sigmaMax :int = 10
+lambdaMax:int = 10
+sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
+lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
 
 print("Base training set size:", argTrain)
 if argExtend: print("Extending Data. This will result in a fivefold increase of training data.")
@@ -150,6 +157,40 @@ def stratSplit(nData:int, nTrain:int, k:int, y):
     
     return trainingIndex, testingIndex
 
+def stratified_k_fold(X, y, k:int = 5):
+    assert len(X) == len(y), "X and y must have same length."
+    assert k > 1           , "k must be greater than 1."
+
+    sortedXy = np.array(sorted(np.column_stack((X, y)),
+                  key = lambda x: x[-1]))
+    
+    strata = []
+
+    n_per_fold = len(X) // k
+    for i in range(k-1):
+        strata.append(sortedXy[i*n_per_fold : (i+1)*n_per_fold])
+    strata.append(sortedXy[(k-1)*n_per_fold:])
+
+    for stratum in strata:
+        np.random.shuffle(stratum)
+
+    folds = [[] for i in range(k)]
+
+    for stratum in strata:
+        index = 0
+        for i in range(len(stratum)):
+            folds[index].append(stratum[i])
+
+            index += 1
+            if index % 5 == 0: index = 0
+
+    for i in range(k):
+        folded = np.array(folds[i])
+        
+        np.savetxt(inpath + f"fold{i}.txt", folded[:, :-1])
+
+    return np.array(folds)
+
 model_size = argTrain
 
 Z_small, R_small, E_small = importQM7(structure_file = inpath + "qm7_small.txt", 
@@ -203,6 +244,9 @@ training_data = coulomb_eigenvalues(Z = Z_train, R = R_train, n_max = n_max,
                                     outputname = inpath + "coulomb_train.txt", 
                                     extend=argExtend)
 training_trgt = np.array(E_train)
+
+if stratify:
+    stratified_k_fold(training_data, training_trgt, k=k)
 np.savetxt(fname= inpath + "PBE0_train.txt", X=training_trgt)
 
 testing_data  = coulomb_eigenvalues(Z = Z_test, R = R_test, n_max = n_max, 
@@ -210,12 +254,6 @@ testing_data  = coulomb_eigenvalues(Z = Z_test, R = R_test, n_max = n_max,
                                     extend = False)
 testing_trgt  = np.array(E_test)
 
-np.savetxt(fname= inpath + "PBE0_test.txt", X=testing_trgt)
-
-sigmaMax :int = 30
-lambdaMax:int = 30
-sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
-lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
-
+np.savetxt(fname = inpath + "PBE0_test.txt", X=testing_trgt)
 np.savetxt(fname = inpath + "sigmas.txt" , X=sigmas )
 np.savetxt(fname = inpath + "lambdas.txt", X=lambdas)
