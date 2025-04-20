@@ -212,8 +212,8 @@ testing_trgt  = np.array(E_test)
 
 np.savetxt(fname= inpath + "PBE0_test.txt", X=testing_trgt)
 
-sigmaMax :int = 10
-lambdaMax:int = 10
+sigmaMax :int = 30
+lambdaMax:int = 30
 sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
 lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
 

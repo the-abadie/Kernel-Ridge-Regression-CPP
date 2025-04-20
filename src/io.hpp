@@ -101,3 +101,16 @@ void writeMAEs(const std::string filepath, const MatrixXd& MAEs){
         file.close();
     }
 }
+
+void writeHPs(const std::string filepath, const double sigma, const double lambda, const kernelType kernel){
+    std::ofstream file(filepath + "HPs.txt");
+
+    if (file.is_open()){
+        file << "Sigma : " << sigma  << std::endl;
+        file << "Lambda: " << lambda << std::endl;
+        file << "Kernel: " << kernel << std::endl;
+    
+        // Close the file
+        file.close();
+    }
+}   

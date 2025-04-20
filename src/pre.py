@@ -7,6 +7,11 @@ argTrain  = int (sys.argv[1])
 argExtend = True if int(sys.argv[2]) == 1 else False
 inpath    = str(sys.argv[3])
 
+sigmaMax :int = 10
+lambdaMax:int = 10
+sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
+lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
+
 print("Base training set size:", argTrain)
 if argExtend: print("Extending Data. This will result in a fivefold increase of training data.")
 
@@ -204,23 +209,13 @@ training_data = coulomb_eigenvalues(Z = Z_train, R = R_train, n_max = n_max,
                                     extend=argExtend)
 training_trgt = np.array(E_train)
 np.savetxt(fname= inpath + "PBE0_train.txt", X=training_trgt)
-print(np.shape(training_data))
-print(np.shape(training_trgt))
 
 testing_data  = coulomb_eigenvalues(Z = Z_test, R = R_test, n_max = n_max, 
                                     outputname = inpath + "coulomb_test.txt",
                                     extend = False)
 testing_trgt  = np.array(E_test)
 
-print(np.shape(testing_data))
-print(np.shape(testing_trgt))
-
 np.savetxt(fname= inpath + "PBE0_test.txt", X=testing_trgt)
-
-sigmaMax :int = 10
-lambdaMax:int = 10
-sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
-lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
 
 np.savetxt(fname = inpath + "sigmas.txt" , X=sigmas )
 np.savetxt(fname = inpath + "lambdas.txt", X=lambdas)

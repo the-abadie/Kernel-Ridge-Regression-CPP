@@ -82,6 +82,9 @@
         "codecvt": "cpp",
         "forward_list": "cpp",
         "ranges": "cpp",
-        "*.inc": "cpp"
+        "*.inc": "cpp",
+        "shared_mutex": "cpp",
+        "csignal": "cpp",
+        "eigen": "cpp"
     }
 }

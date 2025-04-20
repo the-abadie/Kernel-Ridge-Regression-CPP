@@ -3,7 +3,7 @@ import numpy as np
 import sys
 
 outpath = str(sys.argv[1])
-file = open(outpath + "/MAE.txt", 'r').readlines()
+file = open(outpath + "/MAEs.txt", 'r').readlines()
 
 nSigma  = len(file)
 nLambda = len(file[0].split())
@@ -14,7 +14,6 @@ for line in range(len(file)):
     x = file[line].split()
 
     maes[line] = np.array(x)
-
 
 plt.imshow(maes, cmap="jet", interpolation="none")
 clb = plt.colorbar()

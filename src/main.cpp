@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[]){
 
-    omp_set_num_threads(10);
+    omp_set_num_threads(20);
     
     const std::string in_path  = argv[1];
     const std::string out_path = argv[2];
@@ -40,16 +40,18 @@ int main(int argc, char *argv[]){
     Vector2i best_param {0, 0};
 
     auto start = std::chrono::high_resolution_clock::now();
-    VectorXd fold_errors = VectorXd::Zero(k);
+    
+    double fold_error = 0.0;
 
     #pragma omp parallel for
     for(int i = 0; i < sigmas.size(); i++){
-        #pragma omp parallel for
+        #pragma omp parallel for private(fold_error)
         for (int j = 0; j < lambdas.size(); j++){
             std::cout << "CV " << CV_index << " of " << sigmas.size()*lambdas.size() << "\n";
             CV_index++;
 
-            #pragma omp parallel for
+            fold_error = 0.0;
+            // #pragma omp parallel for
             for (int n = 0; n < k; n++) {
                 auto &[X_train, y_train, X_test, y_test] = folds[n];
             
@@ -59,10 +61,10 @@ int main(int argc, char *argv[]){
 
                 auto eval = folded_krr.evaluate(X_test, y_test, loss, 0);
 
-                fold_errors(n) = eval.second;
+                fold_error += eval.second;
             };
 
-            MAEs(i, j) = fold_errors.mean();
+            MAEs(i, j) = fold_error / k;
 
             if (MAEs(i, j) < best_error){
                 best_error = MAEs(i, j);
@@ -94,6 +96,6 @@ int main(int argc, char *argv[]){
     writeEnergies(out_path, testingTrgt, eval.first);
     writeAlphas  (out_path, finalModel.get_alphas());
     writeMAEs    (out_path, MAEs);
-
+    writeHPs     (out_path, opt_sigma, opt_lambda, kernel);
     return 0;
 }
