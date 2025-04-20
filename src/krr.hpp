@@ -1,12 +1,9 @@
 #include "eigen-3.4.0/Eigen/Eigen"
-#include <vector>
 #include <iostream>
+#include <vector>
 #include <cmath>
-#include <algorithm>
 #include <chrono>
-#include <random>
-#include <numeric>
-#include <tuple>
+#include <omp.h>
 
 using namespace Eigen;
 
@@ -48,7 +45,7 @@ public:
     void set_lambda(const double LAMBDA)  {lambda = LAMBDA;}
 
     //Methods
-    void fit(const MatrixXd TRAININGDATA, const VectorXd TRAININGTARGET, int verbose){
+    void fit(const MatrixXd& TRAININGDATA, const VectorXd& TRAININGTARGET, const int verbose){
         auto start = std::chrono::high_resolution_clock::now();
 
         trainingData = TRAININGDATA;
@@ -74,11 +71,11 @@ public:
 
                 if (kernel == GAUSSIAN){
                     K(i, j) = 
-                        std::exp((trainingData(i, all) - trainingData(j, all)).squaredNorm() * dst);
+                        std::exp((trainingData.row(i) - trainingData.row(j)).squaredNorm() * dst);
                 }
                 else if (kernel == LAPLACIAN){
                     K(i, j) = 
-                        std::exp((trainingData(i, all) - trainingData(j, all)).lpNorm<1>() * dst);
+                        std::exp((trainingData.row(i) - trainingData.row(j)).lpNorm<1>() * dst);
                 }
                 
             }
@@ -96,7 +93,7 @@ public:
         if (verbose > 0){std::cout << "Model trained in " << duration.count() << " ms.\n" << std::endl;};
     };
 
-    VectorXd predict(const MatrixXd testing_data, const int verbose){
+    VectorXd predict(const MatrixXd& testing_data, const int verbose){
         const auto start = std::chrono::high_resolution_clock::now();
 
         const int nTest = testing_data.rows();
@@ -108,16 +105,21 @@ public:
         
         VectorXd predictions = VectorXd::Zero(nTest);
 
-        for (int i = 0; i < nTest; i++){
-            MatrixXd T_x = (-trainingData).rowwise() + testing_data(i, all);
+        MatrixXd T_x(trainingData.rows(), trainingData.cols());
+        VectorXd D_x(trainingData.rows());
+        VectorXd D_exp(trainingData.rows());
 
-            VectorXd D_x = T_x.rowwise().squaredNorm();
+        #pragma omp parallel for private(T_x, D_x, D_exp)
+        for (int i = 0; i < nTest; i++){
+            T_x = (-trainingData).rowwise() + testing_data.row(i);
+
+            D_x = T_x.rowwise().squaredNorm();
             
             if      (kernel == GAUSSIAN) {D_x = T_x.rowwise().squaredNorm();}
             else if (kernel == LAPLACIAN){D_x = T_x.rowwise().lpNorm<1>();}
             D_x *= dst;
 
-            VectorXd D_exp = D_x.array().exp();
+            D_exp = D_x.array().exp();
 
             predictions(i) = (alphas.array() * D_exp.array()).sum();
         }
@@ -129,7 +131,7 @@ public:
         return predictions;
     };
 
-    std::pair<VectorXd, double> evaluate(MatrixXd testing_data, VectorXd testing_trgt, lossMetric loss, int verbose){
+    std::pair<VectorXd, double> evaluate(const MatrixXd& testing_data, const VectorXd& testing_trgt, const lossMetric loss, const int verbose){
         auto start = std::chrono::high_resolution_clock::now();
 
         int nTest = testing_data.rows();
@@ -140,16 +142,21 @@ public:
         
         VectorXd predictions = VectorXd::Zero(nTest);
 
-        for (int i = 0; i < nTest; i++){
-            MatrixXd T_x = (-trainingData).rowwise() + testing_data(i, all);
+        MatrixXd T_x(trainingData.rows(), trainingData.cols());
+        VectorXd D_x(trainingData.rows());
+        VectorXd D_exp(trainingData.rows());
 
-            VectorXd D_x = T_x.rowwise().squaredNorm();
+        #pragma omp parallel for private(T_x, D_x, D_exp)
+        for (int i = 0; i < nTest; i++){
+            T_x = (-trainingData).rowwise() + testing_data.row(i);
+
+            D_x = T_x.rowwise().squaredNorm();
             
             if      (kernel == GAUSSIAN) {D_x = T_x.rowwise().squaredNorm();}
             else if (kernel == LAPLACIAN){D_x = T_x.rowwise().lpNorm<1>();}
             D_x *= dst;
 
-            VectorXd D_exp = D_x.array().exp();
+            D_exp = D_x.array().exp();
 
             predictions(i) = (alphas.array() * D_exp.array()).sum();
         }
@@ -167,60 +174,4 @@ public:
 
         return {predictions, error};
     };
-};
-
-class KFold {
-public:
-    KFold(int k) : k_(k) {}
-
-    std::vector<std::tuple<Eigen::MatrixXd, Eigen::VectorXd, Eigen::MatrixXd, Eigen::VectorXd>>
-    split(const Eigen::MatrixXd& data, const Eigen::VectorXd& targets) {
-        int n = data.rows();
-        if (targets.size() != n) {
-            throw std::invalid_argument("Number of rows in data must match size of targets.");
-        }
-
-        std::vector<int> indices(n);
-        std::iota(indices.begin(), indices.end(), 0);
-
-        std::vector<std::tuple<Eigen::MatrixXd, Eigen::VectorXd, Eigen::MatrixXd, Eigen::VectorXd>> folds;
-
-        int fold_size = n / k_;
-        for (int i = 0; i < k_; ++i) {
-            int start = i * fold_size;
-            int end = (i == k_ - 1) ? n : start + fold_size;
-
-            std::vector<int> test_indices(indices.begin() + start, indices.begin() + end);
-            std::vector<int> train_indices;
-            train_indices.reserve(n - test_indices.size());
-
-            for (int j = 0; j < n; ++j) {
-                if (j < start || j >= end) {
-                    train_indices.push_back(indices[j]);
-                }
-            }
-
-            Eigen::MatrixXd X_train(train_indices.size(), data.cols());
-            Eigen::VectorXd y_train(train_indices.size());
-            Eigen::MatrixXd X_test(test_indices.size(), data.cols());
-            Eigen::VectorXd y_test(test_indices.size());
-
-            for (size_t j = 0; j < train_indices.size(); ++j) {
-                X_train.row(j) = data.row(train_indices[j]);
-                y_train(j) = targets(train_indices[j]);
-            }
-
-            for (size_t j = 0; j < test_indices.size(); ++j) {
-                X_test.row(j) = data.row(test_indices[j]);
-                y_test(j) = targets(test_indices[j]);
-            }
-
-            folds.emplace_back(X_train, y_train, X_test, y_test);
-        }
-
-        return folds;
-    }
-
-private:
-    int k_;
 };

@@ -7,6 +7,15 @@ argTrain  = int (sys.argv[1])
 argExtend = True if int(sys.argv[2]) == 1 else False
 inpath    = str(sys.argv[3])
 
+sigmaMax :int = 20
+lambdaMax:int = 20
+sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
+lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
+
+np.savetxt(fname = inpath + "sigmas.txt" , X=sigmas )
+np.savetxt(fname = inpath + "lambdas.txt", X=lambdas)
+
+
 print("Base training set size:", argTrain)
 if argExtend: print("Extending Data. This will result in a fivefold increase of training data.")
 
@@ -64,7 +73,7 @@ def importQM7(structure_file:str, energy_file:str):
     
     return Z, R, E
 
-def coulomb_eigenvalues(Z, R, n_max, outputname:str):
+def coulomb_eigenvalues(Z, R, n_max, outputname:str, extend:bool = False):
     n_mols = len(Z)
     n_max  = n_max
 
@@ -91,6 +100,14 @@ def coulomb_eigenvalues(Z, R, n_max, outputname:str):
             coulomb_eVs[k] = sorted_eVal
         else:
             coulomb_eVs[k] = np.concatenate((sorted_eVal, [0]*(n_max-n_atoms)))
+
+    if extend:
+        fs = [2/3, 0.995, 1.005, 3]
+        eV_copy = np.copy(coulomb_eVs)
+        for f in fs:
+            eV_copy *= f
+            coulomb_eVs = np.concatenate((coulomb_eVs, eV_copy))
+            eV_copy /= f
 
     np.savetxt(fname=outputname, X=coulomb_eVs, delimiter=" ", newline="\n")
     return coulomb_eVs
@@ -168,11 +185,9 @@ for i in range(len(strat_test)):
     R_test.append(R_rest[strat_test[i]])
     E_test.append(E_rest[strat_test[i]])
 
+fs = [2/3, 0.995, 1.005, 3]
 if argExtend:
-    fs = [2/3, 0.995, 1.005, 3]
 
-    Z_super = deepcopy(Z_train) * 5
-    R_super = deepcopy(R_train) * 5
     E_super = deepcopy(E_train) * 5
 
     index = 0
@@ -184,11 +199,7 @@ if argExtend:
                 E_super[i] = 0
             elif (fs[n] == 0.995) or (fs[n] == 1.005):
                 E_super[i] *= 1.005
-            
-            R_super[i] = R_train[i - index]*fs[n]
 
-    Z_train = Z_super
-    R_train = R_super
     E_train = E_super
 
 if (len(max(Z_train, key=len)) != len(max(Z_test, key=len))):
@@ -197,24 +208,20 @@ if (len(max(Z_train, key=len)) != len(max(Z_test, key=len))):
 n_max = max(len(max(Z_train, key=len)),
             len(max(Z_test,  key=len)))
 
-training_data = coulomb_eigenvalues(Z=Z_train, R=R_train, n_max=n_max, outputname= inpath + "coulomb_train.txt")
+training_data = coulomb_eigenvalues(Z = Z_train, R = R_train, n_max = n_max, 
+                                    outputname = inpath + "coulomb_train.txt", 
+                                    extend=argExtend)
 training_trgt = np.array(E_train)
 np.savetxt(fname= inpath + "PBE0_train.txt", X=training_trgt)
 print(np.shape(training_data))
 print(np.shape(training_trgt))
 
-testing_data  = coulomb_eigenvalues(Z=Z_test, R=R_test, n_max=n_max, outputname= inpath + "coulomb_test.txt")
+testing_data  = coulomb_eigenvalues(Z = Z_test, R = R_test, n_max = n_max, 
+                                    outputname = inpath + "coulomb_test.txt",
+                                    extend = False)
 testing_trgt  = np.array(E_test)
 
 print(np.shape(testing_data))
 print(np.shape(testing_trgt))
 
 np.savetxt(fname= inpath + "PBE0_test.txt", X=testing_trgt)
-
-sigmaMax :int = 10
-lambdaMax:int = 10
-sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
-lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
-
-np.savetxt(fname = inpath + "sigmas.txt" , X=sigmas )
-np.savetxt(fname = inpath + "lambdas.txt", X=lambdas)

@@ -26,7 +26,7 @@ plt.ylim(-0.5, nSigma-0.5)
 plt.xticks([i for i in range(0,nLambda)])
 plt.yticks([i for i in range(0,nSigma)])
 plt.title("Validation Error wrt Hyperparameters")
-plt.savefig(outpath + "MAE.png", dpi=150)
+plt.savefig(outpath + "/MAE.png", dpi=150, bbox_inches="tight")
 
 plt.close()
 
@@ -44,8 +44,8 @@ plt.plot([-2500, -500], [-2500, -500], color="black", linestyle=":", zorder=10, 
 plt.plot(c, p[0]*c + p[1], color="red", linestyle=":", label="Fit")
 
 
-plt.xlim(-2750, 250)
-plt.ylim(-2750, 250)
+plt.xlim(-2750, -250)
+plt.ylim(-2750, -250)
 plt.xlabel(r"$E_\text{PBE0}$")
 plt.ylabel(r"$E_\text{est}$")
 plt.title("Data vs. Prediction Using Coulomb Matrix Eigenvalues")
