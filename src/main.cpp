@@ -1,9 +1,6 @@
-#include "krr.hpp"
-#include "kfold.hpp"
 #include "io.hpp"
 
 int main(int argc, char *argv[]){
-
     const int         k        = std::stoi(argv[1]);
     const int         nThreads = std::stoi(argv[2]);
     const std::string in_path  = argv[3];
@@ -11,11 +8,11 @@ int main(int argc, char *argv[]){
 
     omp_set_num_threads(nThreads);
 
-    const MatrixXd trainingData = readCoulomb(in_path + "coulomb_train.txt");
-    const VectorXd trainingTrgt = readPBE0   (in_path + "PBE0_train.txt");
+    const Matrix<double, N_TRAIN, N_DESC> trainingData = readCoulomb(in_path + "coulomb_train.txt");
+    const Vector<double, N_TRAIN>         trainingTrgt = readPBE0   (in_path + "PBE0_train.txt");
 
-    const MatrixXd testingData  = readCoulomb(in_path + "coulomb_test.txt");
-    const VectorXd testingTrgt  = readPBE0   (in_path + "PBE0_test.txt");
+    const Matrix<double, N_TEST, N_DESC>  testingData = readCoulomb(in_path + "coulomb_test.txt");
+    const Vector<double, N_TEST>          testingTrgt = readPBE0   (in_path + "PBE0_test.txt");
 
     std::cout << "Training Size: " << trainingData.rows() << "\n"; 
     std::cout << "Testing Size : "  << testingData.rows()  << "\n"; 

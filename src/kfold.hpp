@@ -1,10 +1,28 @@
 #include "eigen-3.4.0/Eigen/Eigen"
-#include <vector>
+
 #include <algorithm>
 #include <numeric>
 #include <tuple>
+#include <iostream>
+#include <vector>
+#include <string>
 #include <fstream>
 #include <sstream>
+
+#ifndef N_TRAIN
+#define N_TRAIN 1
+#define MISSING 1
+#endif
+
+#ifndef N_DESC
+#define N_DESC  1
+#define MISSING 1
+#endif
+
+#ifndef N_TEST
+#define N_TEST  1
+#define MISSING 1
+#endif
 
 using namespace Eigen;
 
@@ -28,8 +46,8 @@ class KFold {
         //     return idx;
         //   }
     
-        std::vector<std::tuple<Eigen::MatrixXd, Eigen::VectorXd, Eigen::MatrixXd, Eigen::VectorXd>>
-        split(const Eigen::MatrixXd& data, const Eigen::VectorXd& targets) {
+        std::vector<std::tuple<MatrixXd, VectorXd, MatrixXd, VectorXd>>
+        split(const Matrix<double, N_TRAIN, N_DESC>& data, const Vector<double, N_TRAIN>& targets) {
             int n = data.rows();
             if (targets.size() != n) {
                 throw std::invalid_argument("Number of rows in data must match size of targets.");
@@ -38,7 +56,7 @@ class KFold {
             std::vector<int> indices(n);
             std::iota(indices.begin(), indices.end(), 0);
     
-            std::vector<std::tuple<Eigen::MatrixXd, Eigen::VectorXd, Eigen::MatrixXd, Eigen::VectorXd>> folds;
+            std::vector<std::tuple<MatrixXd, Eigen::VectorXd, MatrixXd, VectorXd>> folds;
     
             int fold_size = n / k_;
             for (int i = 0; i < k_; ++i) {
@@ -55,10 +73,10 @@ class KFold {
                     }
                 }
     
-                Eigen::MatrixXd X_train(train_indices.size(), data.cols());
-                Eigen::VectorXd y_train(train_indices.size());
-                Eigen::MatrixXd X_test(test_indices.size(), data.cols());
-                Eigen::VectorXd y_test(test_indices.size());
+                MatrixXd X_train(train_indices.size(), data.cols());
+                VectorXd y_train(train_indices.size());
+                MatrixXd X_test(test_indices.size(), data.cols());
+                VectorXd y_test(test_indices.size());
     
                 for (size_t j = 0; j < train_indices.size(); ++j) {
                     X_train.row(j) = data.row(train_indices[j]);

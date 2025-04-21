@@ -1,6 +1,5 @@
-#include "eigen-3.4.0/Eigen/Eigen"
-#include <iostream>
-#include <vector>
+#include "kfold.hpp"
+
 #include <cmath>
 #include <chrono>
 #include <omp.h>
@@ -23,8 +22,8 @@ private:
     double lambda;
     kernelType kernel;
 
-    VectorXd alphas;
-    MatrixXd trainingData;
+    Vector<double, N_TRAIN>         alphas;
+    Matrix<double, N_TRAIN, N_DESC> trainingData;
 
 public:
     //Constructors
@@ -35,24 +34,25 @@ public:
     };
     
     //Getters
-    const VectorXd get_alphas(){return alphas;}
-    const double   get_sigma (){return sigma;}
-    const double   get_lambda(){return lambda;}
+    const Vector<double, N_TRAIN> get_alphas(){return alphas;}
+    const double                  get_sigma (){return sigma;}
+    const double                  get_lambda(){return lambda;}
 
     //Setters
-    void set_alphas(const VectorXd ALPHAS){alphas = ALPHAS;}
-    void set_sigma (const double SIGMA)   {sigma  = SIGMA;}
-    void set_lambda(const double LAMBDA)  {lambda = LAMBDA;}
+    void set_alphas(const Vector<double, N_TRAIN> ALPHAS){alphas = ALPHAS;}
+    void set_sigma (const double SIGMA)                  {sigma  = SIGMA;}
+    void set_lambda(const double LAMBDA)                 {lambda = LAMBDA;}
 
     //Methods
-    void fit(const MatrixXd& TRAININGDATA, const VectorXd& TRAININGTARGET, const int verbose){
+    void fit(const Matrix<double, N_TRAIN, N_DESC>& TRAININGDATA,
+             const Vector<double, N_TRAIN>&         TRAININGTARGET, 
+             const int verbose){
+
         auto start = std::chrono::high_resolution_clock::now();
 
         trainingData = TRAININGDATA;
 
-        int nTrain = trainingData.rows();
-
-        MatrixXd K = MatrixXd::Zero(nTrain, nTrain);
+        Matrix<double, N_TRAIN, N_TRAIN> K = Matrix<double, N_TRAIN, N_TRAIN>::Zero(N_TRAIN, N_TRAIN);
 
         // Construct Kernel Matrix
 
@@ -64,8 +64,8 @@ public:
 
         if (verbose > 0){std::cout << "Training model...\n";};
 
-        for(int i = 0; i < nTrain; i++){
-            for(int j = 0; j < nTrain; j++){
+        for(int i = 0; i < N_TRAIN; i++){
+            for(int j = 0; j < N_TRAIN; j++){
                 if      (i == j){K(i, j) = 1.     ; continue;}
                 else if (i  > j){K(i, j) = K(j, i); continue;}
 
@@ -82,7 +82,8 @@ public:
         }
 
         // Construct lambdaI
-        MatrixXd lambdaI = MatrixXd::Identity(nTrain, nTrain)*lambda;
+        Matrix<double, N_TRAIN, N_TRAIN> lambdaI = 
+        Matrix<double, N_TRAIN, N_TRAIN>::Identity(N_TRAIN, N_TRAIN)*lambda;
         
         //Get alphas
         alphas = ((K + lambdaI).inverse())*TRAININGTARGET;
@@ -93,24 +94,24 @@ public:
         if (verbose > 0){std::cout << "Model trained in " << duration.count() << " ms.\n" << std::endl;};
     };
 
-    VectorXd predict(const MatrixXd& testing_data, const int verbose){
-        const auto start = std::chrono::high_resolution_clock::now();
+    VectorXd predict(const Matrix<double, N_TEST, N_DESC>& testing_data, 
+                     const int verbose){
 
-        const int nTest = testing_data.rows();
+        const auto start = std::chrono::high_resolution_clock::now();
 
         double dst = 0.;
         if     (kernel == GAUSSIAN) {dst = 1./(-2.*sigma*sigma);}
         else if(kernel == LAPLACIAN){dst = 1./-sigma;}
         else   {std::cerr << "Kernel not specified, or not one of the allowed types."; exit(-1);}
         
-        VectorXd predictions = VectorXd::Zero(nTest);
+        VectorXd predictions = VectorXd::Zero(N_TEST);
 
-        MatrixXd T_x(trainingData.rows(), trainingData.cols());
-        VectorXd D_x(trainingData.rows());
-        VectorXd D_exp(trainingData.rows());
+        Matrix<double, N_TRAIN, N_DESC> T_x;
+        Vector<double, N_TRAIN>         D_x;
+        Vector<double, N_TRAIN>         D_exp;
 
         #pragma omp parallel for private(T_x, D_x, D_exp)
-        for (int i = 0; i < nTest; i++){
+        for (int i = 0; i < N_TEST; i++){
             T_x = (-trainingData).rowwise() + testing_data.row(i);
 
             D_x = T_x.rowwise().squaredNorm();
@@ -127,11 +128,15 @@ public:
         const auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        if (verbose > 0){std::cout << "Evaluated " << nTest << " points in " << duration.count() << " ms." << std::endl;};
+        if (verbose > 0){std::cout << "Evaluated " << N_TEST << " points in " << duration.count() << " ms." << std::endl;};
         return predictions;
     };
 
-    std::pair<VectorXd, double> evaluate(const MatrixXd& testing_data, const VectorXd& testing_trgt, const lossMetric loss, const int verbose){
+    std::pair<VectorXd, double> evaluate(const Matrix<double, N_TEST, N_DESC>& testing_data, 
+                                         const Vector<double, N_TEST>&         testing_trgt, 
+                                         const lossMetric loss, 
+                                         const int verbose){
+
         auto start = std::chrono::high_resolution_clock::now();
 
         int nTest = testing_data.rows();
@@ -140,11 +145,11 @@ public:
         else if(kernel == LAPLACIAN){dst = 1./-sigma;}
         else   {std::cerr << "Kernel not specified, or not one of the allowed types."; exit(-1);}
         
-        VectorXd predictions = VectorXd::Zero(nTest);
+        Vector<double, N_TEST> predictions = Vector<double, N_TEST>::Zero(N_TEST);
 
-        MatrixXd T_x(trainingData.rows(), trainingData.cols());
-        VectorXd D_x(trainingData.rows());
-        VectorXd D_exp(trainingData.rows());
+        Matrix<double, N_TRAIN, N_DESC> T_x;
+        Vector<double, N_TRAIN>         D_x;
+        Vector<double, N_TRAIN>         D_exp;
 
         #pragma omp parallel for private(T_x, D_x, D_exp)
         for (int i = 0; i < nTest; i++){
@@ -170,7 +175,7 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        if (verbose > 0){std::cout << "Evaluated " << nTest << " points in " << duration.count() << " ms." << std::endl;};
+        if (verbose > 0){std::cout << "Evaluated " << N_TEST << " points in " << duration.count() << " ms." << std::endl;};
 
         return {predictions, error};
     };

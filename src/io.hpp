@@ -1,4 +1,6 @@
 #include "eigen-3.4.0/Eigen/Eigen"
+#include "krr.hpp"
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -29,7 +31,7 @@ VectorXd readPBE0(std::string filepath){
     return E_vec;
 }
 
-MatrixXd readCoulomb(std::string filepath){
+Matrix<double, Dynamic, N_DESC> readCoulomb(std::string filepath){
     std::ifstream file(filepath);
 
     if (!file.is_open()){std::cerr << "Failed to open eigenvalue file.\n"; exit(1);};
@@ -53,7 +55,7 @@ MatrixXd readCoulomb(std::string filepath){
 
     file.close();
 
-    MatrixXd D = MatrixXd::Zero(descriptors.size(), descriptors[0].size());
+    Matrix<double, Dynamic, N_DESC> D = Matrix<double, Dynamic, N_DESC>::Zero(descriptors.size(), N_DESC);
 
     for (int i = 0; i < descriptors.size(); i++){
         for (int j = 0; j < descriptors[i].size(); j++){
@@ -80,7 +82,7 @@ void writeEnergies(const std::string filepath, const VectorXd& PBE0, const Vecto
 
 }
 
-void writeAlphas(const std::string filepath, const VectorXd& alphas){
+void writeAlphas(const std::string filepath, const Vector<double, N_TRAIN>& alphas){
     std::ofstream file(filepath + "alphas.txt");
 
     if (file.is_open()){

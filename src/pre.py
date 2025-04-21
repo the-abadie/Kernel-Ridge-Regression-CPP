@@ -258,3 +258,8 @@ testing_trgt  = np.array(E_test)
 np.savetxt(fname = inpath + "PBE0_test.txt", X=testing_trgt)
 np.savetxt(fname = inpath + "sigmas.txt" , X=sigmas )
 np.savetxt(fname = inpath + "lambdas.txt", X=lambdas)
+
+sizes = open(inpath + "/sizes.txt",  'w')
+sizes.write(f"n_train: {len(training_data)}\n")
+sizes.write(f"n_desc:  {len(training_data[0])}\n")
+sizes.write(f"n_test:  {len(training_data)}\n")
