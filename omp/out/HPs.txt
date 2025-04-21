@@ -1,3 +1,0 @@
-Sigma : 32768
-Lambda: 1e-30
-Kernel: 1
