@@ -9,8 +9,8 @@ stratify  = True if int(sys.argv[3]) == 1 else False
 k         = int(sys.argv[4])
 inpath    = str(sys.argv[5])
 
-sigmaMax :int = 10
-lambdaMax:int = 10
+sigmaMax :int = 30
+lambdaMax:int = 30
 sigmas  = np.array([2**i for i in  range(0,sigmaMax)])
 lambdas = np.array([10**i for i in range(-lambdaMax, 0)])
 
