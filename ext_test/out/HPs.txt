@@ -1,3 +1,0 @@
-Sigma : 4
-Lambda: 1e-10
-Kernel: 1
