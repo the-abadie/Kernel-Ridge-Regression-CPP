@@ -12,14 +12,35 @@ MatrixXd compute_kernel(const MatrixXd& A, const MatrixXd& B, const kernelType K
     if (KERNEL == GAUSSIAN){
         gamma = -1. / (sigma * sigma);
 
-        VectorXd A_norm = A.rowwise().squaredNorm(); // (n x 1)
-        VectorXd B_norm = B.rowwise().squaredNorm(); // (m x 1)
-        MatrixXd A_BT   = A*B.transpose().eval();    // (n x m)
+        VectorXd A_norm;
+        VectorXd B_norm;
+
+        //Parallelized if matrix is large.
+        if(A.rows() * B.rows() > 10000) {
+            #pragma omp parallel sections
+            {
+                #pragma omp section
+                A_norm = A.rowwise().squaredNorm();
+                
+                #pragma omp section
+                B_norm = B.rowwise().squaredNorm();
+            }
+
+        } 
+
+        //Default (sequential) behavior
+        else {
+            A_norm = A.rowwise().squaredNorm();   // (n x 1)
+            B_norm = B.rowwise().squaredNorm();   // (m x 1)
+        }
+
+        MatrixXd A_BT(A.rows(), B.rows()); 
+        A_BT.noalias() = A*B.transpose();         // (n x m)
 
         return ((A_norm.replicate(1, B.rows()) 
                + B_norm.transpose().replicate(A.rows(), 1)
                - A_BT * 2.0)
-               .array()*gamma).exp().matrix();       // (n x m)
+               .array()*gamma).exp();             // (n x m)
     }
 
     // l1 (Taxicab) Norm
@@ -35,11 +56,11 @@ MatrixXd compute_kernel(const MatrixXd& A, const MatrixXd& B, const kernelType K
             }
         }
 
-        return (D.array() * gamma).exp().matrix();
+        return (D.array() * gamma).exp();
     }
 
     else{
-        std::cerr << "Invalid kernel given in `compute_kernel` friend function." << std::endl;
+        std::cerr << "Invalid kernel type given in `KRR::compute_kernel`." << std::endl;
         exit(-1);
     }
 }
@@ -56,8 +77,18 @@ void KRR::fit(const MatrixXd& TRAININGDATA, const VectorXd& TRAININGTARGET){
     const MatrixXd lambdaI = lambda * MatrixXd::Identity(N, N);
 
     // Cholesky Decomposition to solve for alphas
-    alphas = (K + lambdaI).ldlt().solve(TRAININGTARGET);
+    alphas = ((K + lambdaI)).selfadjointView<Upper>().ldlt().solve(TRAININGTARGET);
 };
+
+void KRR::fit(MatrixXd& KERNELMATRIX, const VectorXd& TRAININGTARGET){
+
+    KERNELMATRIX.diagonal().array() += lambda; //Modify in place
+
+    alphas = KERNELMATRIX.selfadjointView<Upper>().ldlt().solve(TRAININGTARGET);
+
+    KERNELMATRIX.diagonal().array() -= lambda; //Modify in place for reuse
+
+}
 
 //Provides predictions on testing data based on trained `KRR` model.
 //Currently supports l1 (Taxicab) and l2 (Gaussian) `kernelType`.
@@ -75,9 +106,8 @@ VectorXd KRR::predict(const MatrixXd& TESTINGDATA) const{
     return predictions;
 };
 
-[[nodiscrard]]
-std::pair<VectorXd, double>
-KRR::evaluate(const MatrixXd& TESTINGDATA, const VectorXd& TESTINGTARGET, const lossMetric LOSS) const{
+double
+KRR::evaluate(const MatrixXd& TESTINGDATA, const VectorXd& TESTINGTARGET, const lossMetric LOSS) const {
     const int N_test  = TESTINGDATA .rows();
 
     VectorXd predictions = VectorXd::Zero(N_test);
@@ -97,5 +127,28 @@ KRR::evaluate(const MatrixXd& TESTINGDATA, const VectorXd& TESTINGTARGET, const 
         error = std::sqrt(residual.squaredNorm() / N_test);
     }
 
-    return {predictions, error};
+    return error;
+};
+
+double
+KRR::evaluate_kernel(const MatrixXd& KERNELMATRIX, const VectorXd& TESTINGTARGET, const lossMetric LOSS) const {
+  
+    VectorXd predictions = KERNELMATRIX * alphas;
+
+    // Compute loss
+    double error = 0.0;
+    const VectorXd residual = (predictions - TESTINGTARGET);
+
+    if (LOSS == MAE) {
+        error = residual.cwiseAbs().mean();}
+    
+    else if (LOSS == RMSE) {
+        error = std::sqrt(residual.squaredNorm() / TESTINGTARGET.rows());
+    }
+    else{
+        std::cerr << "Invalid kernel type given in `KRR::evaluate`." << std::endl;
+        exit(-1);
+    }
+
+    return error;
 };

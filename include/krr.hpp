@@ -45,13 +45,16 @@ public:
 
     //Methods
     void fit(const MatrixXd& TRAININGDATA, const VectorXd& TRAININGTARGET);
+    void fit(MatrixXd& KERNELMATRIX      , const VectorXd& TRAININGTARGET);
 
     VectorXd predict(const MatrixXd& TESTINGDATA) const;
 
-    std::pair<VectorXd, double>
-    evaluate(const MatrixXd& TESTINGDATA, const VectorXd& TESTINGTARGET, const lossMetric loss) const;
+    double
+    evaluate(const MatrixXd& TESTINGDATA,  const VectorXd& TESTINGTARGET, const lossMetric loss) const;
 
-    //Friends
-    friend MatrixXd 
-    compute_kernel(const MatrixXd& A, const MatrixXd& B, const kernelType KERNEL, const double sigma);
+    double
+    evaluate_kernel(const MatrixXd& KERNELMATRIX, const VectorXd& TESTINGTARGET, const lossMetric LOSS) const;
 };
+
+MatrixXd 
+compute_kernel(const MatrixXd& A, const MatrixXd& B, const kernelType KERNEL, const double sigma);

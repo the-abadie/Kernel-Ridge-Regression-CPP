@@ -18,7 +18,7 @@ int main(int argc, char *argv[]){
     const VectorXd testingTrgt  = readTargets    (in_path + "test_trgt.txt");
 
     std::cout << "Training Size: " << trainingData.rows() << "\n"; 
-    std::cout << "Testing Size : "  << testingData.rows()  << "\n"; 
+    std::cout << "Testing Size : " << testingData.rows()  << std::endl; 
 
     const VectorXd sigmas  = readTargets(in_path + "sigmas.txt");
     const VectorXd lambdas = readTargets(in_path + "lambdas.txt");
@@ -31,36 +31,54 @@ int main(int argc, char *argv[]){
     
     MatrixXd MAEs = MatrixXd::Zero(sigmas.size(), lambdas.size());
 
-    KFold kf(k);  // 5-fold CV
-    auto folds = kf.split(trainingData, trainingTrgt);
-
     Vector2i best_param {0, 0};
-
-    auto start = std::chrono::high_resolution_clock::now();
     
     int CV_index = 0;
 
-    for (int i = 0; i < sigmas.size(); i++){
-        for (int j = 0; j < lambdas.size(); j++){
-            std::cout << "CV " << CV_index << " of " << sigmas.size()*lambdas.size() << "\n";
-            CV_index++;
+    KFold kf(k, trainingData.rows(), 69);
+    auto folds = kf.split();
 
-            double fold_error = 0.0;
-            #pragma omp parallel for
-            for (int n = 0; n < k; n++) {
-                auto &[X_train, y_train, X_test, y_test] = folds[n];
+    for (int i = 0; i < sigmas.size(); ++i){
+        //Compute full training kernel matrix per sigma
+        std::cout << "\nComputing training kernel for sigma " << i << "...\n";
+        const MatrixXd K_FULL = compute_kernel(trainingData, trainingData, kernel, sigmas(i));
+        std::cout << "K_FULL computed. Searching lambda space...\n\n";
+
+        // Pre-compute all fold-specific matrices and vectors (once per sigma)
+        std::vector<MatrixXd> K_train_folds(k);
+        std::vector<MatrixXd> K_val_folds(k);
+        std::vector<VectorXd> y_train_folds(k);
+        std::vector<VectorXd> y_val_folds(k);
+
+        #pragma omp parallel for num_threads(k)
+        for (int n = 0; n < k; ++n) {
+            auto &[train_idx, val_idx] = folds[n];
+            K_train_folds[n] = extract_submatrix(K_FULL, train_idx, train_idx);
+            K_val_folds[n]   = extract_submatrix(K_FULL, val_idx, train_idx);
+            y_train_folds[n] = extract_vector(trainingTrgt, train_idx);
+            y_val_folds[n]   = extract_vector(trainingTrgt, val_idx);
+}
+        #pragma omp parallel for schedule(dynamic)
+        for (int j = 0; j < lambdas.size(); ++j){
+            std::cout << "lambda " << j << std::endl;
+            double val_error = 0.0; 
+
+            #pragma omp parallel for num_threads(k) reduction(+:val_error)
+            for (int n = 0; n < k; ++n){
+    
+                auto &[train_idx, val_idx] = folds[n];
+    
+                MatrixXd& K_train = K_train_folds[n];
+                MatrixXd& K_val = K_val_folds[n];
+                VectorXd& y_train = y_train_folds[n];
+                VectorXd& y_val = y_val_folds[n];
+
+                KRR krr_fold(sigmas(i), lambdas(j), kernel);
             
-                KRR folded_krr(sigmas[i], lambdas[j], kernel);
-
-                folded_krr.fit(X_train, y_train);
-
-                auto eval = folded_krr.evaluate(X_test, y_test, loss);
-
-                fold_error += eval.second;
-                std::cout << "Fold" << n << "complete.\n"; 
+                krr_fold.fit(K_train, y_train);
+                val_error += krr_fold.evaluate_kernel(K_val, y_val, loss);    
             };
-
-            MAEs(i, j) = fold_error / k;
+            MAEs(i, j)  = val_error;
         };
     };
 
@@ -84,19 +102,15 @@ int main(int argc, char *argv[]){
 
     finalModel.fit(trainingData, trainingTrgt);
     
-    auto eval = finalModel.evaluate(testingData, testingTrgt, loss);
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+    VectorXd predictions = finalModel.predict(testingData);
+    double   final_eval  = finalModel.evaluate(testingData, testingTrgt, loss);
+        
+    std::cout << "MAE: " << final_eval << std::endl;
 
-    std::cout << "Training completed after " << duration.count() << " seconds.\n" << std::endl;
-    
-    std::cout << "MAE: " << eval.second << " kcal/mol" << std::endl;
-
-    writeTargets (out_path, testingTrgt, eval.first);
+    writeTargets (out_path, testingTrgt, predictions);
     writeAlphas  (out_path, finalModel.get_alphas());
     writeMAEs    (out_path, MAEs);
     writeHPs     (out_path, opt_sigma, opt_lambda, kernel);
-    writeEout    (out_path, eval.second);
+    writeEout    (out_path, final_eval);
     return 0;
 }
